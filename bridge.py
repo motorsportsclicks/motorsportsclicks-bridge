@@ -244,8 +244,8 @@ def main():
         else:
             new = [i for i in items if i["id"] not in state["rss_seen"]][::-1]
             for i in new[:5]:
-                txt = f"📰 <b>{html.escape(i['title'])}</b>\n\n{html.escape(i['link'])}"
-                tg("sendMessage", {"chat_id": TG_CHANNEL, "text": txt, "parse_mode": "HTML"})
+                # only the link: Telegram shows the article preview (title + image) by itself
+                tg("sendMessage", {"chat_id": TG_CHANNEL, "text": i["link"]})
                 state["rss_seen"].append(i["id"])
                 save_state(state)
                 print(f"Published article: {i['title']}")
