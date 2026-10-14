@@ -236,7 +236,13 @@ def main():
 
     # Website RSS (optional)
     if RSS_URL:
-        items = fetch_rss()
+        try:
+            items = fetch_rss()
+        except Exception as e:
+            # site offline / in maintenance: skip quietly, Instagram keeps working
+            print(f"Website feed not available right now ({e}); skipping.")
+            items = None
+    if RSS_URL and items is not None:
         if not state["rss_initialized"]:
             state["rss_seen"] = [i["id"] for i in items]
             state["rss_initialized"] = True
