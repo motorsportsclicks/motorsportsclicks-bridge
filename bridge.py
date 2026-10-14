@@ -213,7 +213,8 @@ def fetch_rss():
 def main():
     missing = [k for k, v in {"TG_BOT_TOKEN": TG_TOKEN, "TG_CHANNEL": TG_CHANNEL, "IG_TOKEN": IG_TOKEN}.items() if not v]
     if missing:
-        raise RuntimeError("Missing settings: " + ", ".join(missing))
+        print("Not configured yet (missing: " + ", ".join(missing) + "). Nothing to do.")
+        return
 
     state = load_state()
 
