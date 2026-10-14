@@ -12,13 +12,40 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHANNEL: ${{ secrets.TG_CHANNEL }}
           TG_ADMIN_CHAT_ID: ${{ secrets.TG_ADMIN_CHAT_ID }}
+        shell: python
         run: |
-          set -e
-          api="https://api.telegram.org/bot${TG_BOT_TOKEN}"
-          echo "1) Bot:"
-          curl -s "$api/getMe" | python3 -c "import sys,json;j=json.load(sys.stdin);print('::notice::OK @'+j['result']['username'] if j.get('ok') else '::error::ERROR '+str(j.get('description')));sys.exit(0 if j.get('ok') else 1)"
-          echo "2) Bot admin of channel:"
-          me=$(curl -s "$api/getMe" | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['id'])")
-          curl -s "$api/getChatMember" --data-urlencode "chat_id=${TG_CHANNEL}" --data-urlencode "user_id=${me}" | python3 -c "import sys,json;j=json.load(sys.stdin);ok=j.get('ok') and j['result'].get('can_post_messages',False);print('::notice::OK can post' if ok else '::error::ERROR '+str(j.get('description') or j.get('result')));sys.exit(0 if ok else 1)"
-          echo "3) Private alert to admin:"
-          curl -s "$api/sendMessage" --data-urlencode "chat_id=${TG_ADMIN_CHAT_ID}" --data-urlencode "text=✅ Test riuscito: il bot ti può avvisare qui in privato." | python3 -c "import sys,json;j=json.load(sys.stdin);print('::notice::OK' if j.get('ok') else '::error::ERROR '+str(j.get('description')));sys.exit(0 if j.get('ok') else 1)"
+          import os, json, urllib.request, urllib.parse, sys
+          def note(level, msg): print(f"::{level}::{msg}")
+          tok, ch, adm = (os.environ.get(k, "").strip() for k in ("TG_BOT_TOKEN", "TG_CHANNEL", "TG_ADMIN_CHAT_ID"))
+          ok = True
+          for name, val in (("TG_BOT_TOKEN", tok), ("TG_CHANNEL", ch), ("TG_ADMIN_CHAT_ID", adm)):
+              if not val:
+                  note("error", f"{name} is missing or empty"); ok = False
+          if not ok: sys.exit(1)
+          if not ch.startswith("@") and not ch.lstrip("-").isdigit():
+              note("warning", "TG_CHANNEL should start with @")
+          def call(method, **params):
+              url = f"https://api.telegram.org/bot{tok}/{method}"
+              data = urllib.parse.urlencode(params).encode()
+              try:
+                  with urllib.request.urlopen(url, data=data, timeout=30) as r: return json.load(r)
+              except urllib.error.HTTPError as e:
+                  try: return json.load(e)
+                  except Exception: return {"ok": False, "description": f"HTTP {e.code}"}
+          me = call("getMe")
+          if not me.get("ok"):
+              note("error", f"Bot token not valid: {me.get('description')}"); sys.exit(1)
+          note("notice", f"Bot OK: @{me['result']['username']}")
+          m = call("getChatMember", chat_id=ch, user_id=me["result"]["id"])
+          if not m.get("ok"):
+              note("error", f"Channel {ch}: {m.get('description')}"); ok = False
+          elif not m["result"].get("can_post_messages"):
+              note("error", f"Channel {ch}: bot is '{m['result'].get('status')}' but cannot post"); ok = False
+          else:
+              note("notice", f"Channel {ch}: bot can post")
+          s = call("sendMessage", chat_id=adm, text="✅ Test riuscito: il bot ti può avvisare qui in privato.")
+          if not s.get("ok"):
+              note("error", f"Admin chat: {s.get('description')}"); ok = False
+          else:
+              note("notice", "Admin chat OK (test message sent)")
+          sys.exit(0 if ok else 1)
