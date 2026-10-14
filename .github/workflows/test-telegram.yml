@@ -1,0 +1,24 @@
+name: Test Telegram
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check bot, channel and admin chat
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHANNEL: ${{ secrets.TG_CHANNEL }}
+          TG_ADMIN_CHAT_ID: ${{ secrets.TG_ADMIN_CHAT_ID }}
+        run: |
+          set -e
+          api="https://api.telegram.org/bot${TG_BOT_TOKEN}"
+          echo "1) Bot:"
+          curl -s "$api/getMe" | python3 -c "import sys,json;j=json.load(sys.stdin);print('  OK @'+j['result']['username'] if j.get('ok') else '  ERROR '+str(j.get('description')));sys.exit(0 if j.get('ok') else 1)"
+          echo "2) Bot admin of channel:"
+          me=$(curl -s "$api/getMe" | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['id'])")
+          curl -s "$api/getChatMember" --data-urlencode "chat_id=${TG_CHANNEL}" --data-urlencode "user_id=${me}" | python3 -c "import sys,json;j=json.load(sys.stdin);ok=j.get('ok') and j['result'].get('can_post_messages',False);print('  OK can post' if ok else '  ERROR '+str(j.get('description') or j.get('result')));sys.exit(0 if ok else 1)"
+          echo "3) Private alert to admin:"
+          curl -s "$api/sendMessage" --data-urlencode "chat_id=${TG_ADMIN_CHAT_ID}" --data-urlencode "text=✅ Test riuscito: il bot ti può avvisare qui in privato." | python3 -c "import sys,json;j=json.load(sys.stdin);print('  OK' if j.get('ok') else '  ERROR '+str(j.get('description')));sys.exit(0 if j.get('ok') else 1)"
