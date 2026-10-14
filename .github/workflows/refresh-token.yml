@@ -1,0 +1,36 @@
+name: Refresh Instagram token
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # every Monday
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - id: new
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+        run: python refresh_token.py
+      - name: Save new token
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          NEW_TOKEN: ${{ steps.new.outputs.token }}
+        run: |
+          echo "::add-mask::$NEW_TOKEN"
+          gh secret set IG_TOKEN --body "$NEW_TOKEN" --repo "$GITHUB_REPOSITORY"
+      - name: Alert on failure
+        if: failure()
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_ADMIN_CHAT_ID: ${{ secrets.TG_ADMIN_CHAT_ID }}
+        run: |
+          curl -s "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_ADMIN_CHAT_ID}" \
+            --data-urlencode "text=⚠️ Non sono riuscito a rinnovare l'accesso a Instagram. Apri la chat con Claude e incolla questo messaggio."

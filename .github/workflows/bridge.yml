@@ -1,0 +1,43 @@
+name: Instagram to Telegram
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bridge
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Publish new posts
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHANNEL: ${{ secrets.TG_CHANNEL }}
+          TG_ADMIN_CHAT_ID: ${{ secrets.TG_ADMIN_CHAT_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          RSS_URL: ${{ secrets.RSS_URL }}
+        run: python bridge.py
+      - name: Save memory of published posts
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "bridge-bot"
+            git config user.email "bridge-bot@users.noreply.github.com"
+            git add state.json
+            git commit -m "Update published posts"
+            git pull --rebase
+            git push
+          fi
