@@ -49,3 +49,14 @@ jobs:
           else:
               note("notice", "Admin chat OK (test message sent)")
           sys.exit(0 if ok else 1)
+      - name: Check GH_PAT can save secrets
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "::error::GH_PAT is missing"; exit 1; fi
+          if gh secret set PAT_TEST --body "ok" --repo "$GITHUB_REPOSITORY"; then
+            echo "::notice::GH_PAT OK (can save secrets)"
+            gh secret delete PAT_TEST --repo "$GITHUB_REPOSITORY" || true
+          else
+            echo "::error::GH_PAT cannot save secrets (check 'Secrets: Read and write')"; exit 1
+          fi
