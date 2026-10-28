@@ -182,6 +182,17 @@ def publish(post):
 
 
 def fetch_instagram():
+    last = None
+    for attempt in range(3):
+        try:
+            return _fetch_instagram()
+        except Exception as e:
+            last = e
+            time.sleep(10 * (attempt + 1))
+    raise last
+
+
+def _fetch_instagram():
     fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{media_type,media_url}"
     r = requests.get(f"{IG_API}/me/media", params={"fields": fields, "limit": 15, "access_token": IG_TOKEN}, timeout=60)
     j = r.json()
@@ -259,11 +270,25 @@ def main():
     save_state(state)
 
 
+def _bump_failures(reset=False):
+    try:
+        st = load_state()
+        st["fail_count"] = 0 if reset else st.get("fail_count", 0) + 1
+        save_state(st)
+        return st["fail_count"]
+    except Exception:
+        return 99
+
+
 if __name__ == "__main__":
     try:
         main()
+        _bump_failures(reset=True)
     except Exception as e:
         traceback.print_exc()
+        if _bump_failures() < 3:
+            print("Temporary problem, will retry on the next run without alerting.")
+            sys.exit(1)
         alert("⚠️ Automazione Instagram → Telegram: qualcosa non ha funzionato.\n\n"
               f"Errore: {e}\n\nNiente panico: apri la chat con Claude e incolla questo messaggio.")
         sys.exit(1)
